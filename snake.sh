@@ -50,8 +50,7 @@ DX=(1 0 -1 0)
 DY=(0 1 0 -1)
 
 # --- Game state ---
-declare -a SX SY
-declare -A G  # grid lookup for O(1) collision checks
+declare -a SX SY G  # G: flat grid array, index = y*100+x (x<100)
 dir=0 ndir=0 score=0 over=0 fx=0 fy=0
 hi=0
 [[ -f "$HS_FILE" ]] && { read -r hi < "$HS_FILE" 2>/dev/null; hi=${hi:-0}; }
@@ -69,7 +68,7 @@ spawn_food() {
   while true; do
     fx=$(( RANDOM % W ))
     fy=$(( RANDOM % H ))
-    [[ -z "${G[$fx,$fy]:-}" ]] && break
+    [[ -z "${G[$((fy*100+fx))]:-}" ]] && break
     (( ++attempts > 500 )) && break
   done
 }
@@ -80,7 +79,7 @@ init_game() {
   for ((i=0; i<3; i++)); do
     SX+=( $((cx - i)) )
     SY+=( $cy )
-    G[$((cx - i)),$cy]=1
+    G[$(( cy*100 + (cx - i) ))]=1
   done
   dir=0 ndir=0 score=0 over=0 tick="0.15"
   spawn_food
@@ -101,7 +100,7 @@ step() {
   fi
 
   # Self collision (allow moving into current tail position)
-  if [[ -n "${G[$hx,$hy]:-}" ]]; then
+  if [[ -n "${G[$((hy*100+hx))]:-}" ]]; then
     local ti=$(( ${#SX[@]} - 1 ))
     if ! (( SX[ti] == hx && SY[ti] == hy )); then
       over=1
@@ -113,7 +112,7 @@ step() {
   # Add new head
   SX=( "$hx" "${SX[@]}" )
   SY=( "$hy" "${SY[@]}" )
-  G[$hx,$hy]=1
+  G[$(( hy*100+hx ))]=1
 
   # Eat food?
   if (( hx == fx && hy == fy )); then
@@ -130,7 +129,7 @@ step() {
   else
     # Remove tail
     local ti=$(( ${#SX[@]} - 1 ))
-    unset "G[${SX[$ti]},${SY[$ti]}]"
+    unset "G[$(( SY[ti]*100 + SX[ti] ))]"
     unset "SX[$ti]" "SY[$ti]"
     SX=("${SX[@]}") SY=("${SY[@]}")
   fi
@@ -158,7 +157,7 @@ draw() {
         buf+="${BGN}[]${RST}"
       elif (( x == fx && y == fy )); then
         buf+="${RED}<>${RST}"
-      elif [[ -n "${G[$x,$y]:-}" ]]; then
+      elif [[ -n "${G[$((y*100+x))]:-}" ]]; then
         buf+="${GRN}##${RST}"
       else
         buf+="  "
